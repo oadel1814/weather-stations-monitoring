@@ -31,7 +31,7 @@ type MapValue struct {
 }
 
 type Directory struct {
-	//mutex          sync.Mutex
+	indexMutex          sync.Mutex
 	inMemoryIndex  map[string]MapValue 
 	activeWorkers  uint32
 	activeFileId   uint32
@@ -122,10 +122,8 @@ func put(directoryName string ,string key ,string value) string , err{
 	 encodedEntry,recordSize,timestamp:encodeEntry(entry)
 
      registeryMutex.Lock()
-	 defer registeryMutex.Unlock()
-
-	 dir, exists := registryMap[directoryName]
-	 
+	 dir, exists := registryMap[directoryName] 
+     registeryMutex.Unlock()
 	 if !exists  {
          fmt.printf("this directory does not exist in the system")
 		 return nil , fmt.Errorf("this directory is not opened ")
@@ -143,6 +141,8 @@ func put(directoryName string ,string key ,string value) string , err{
 
 	 //append to the file
 
+     indexMutex.Lock()
+	 defer indexMutex.Unlock() 
 	 info, err := d.activeFile.Stat()
      if err != nil {
          return err
@@ -175,30 +175,61 @@ func put(directoryName string ,string key ,string value) string , err{
         return err
       }
 
-     
 	  //update the index 
-
 	 d.inMemoryIndex[key] = MapValue{
         fileID:   d.activeFile.Name(), // Use the filename as a temporary ID
         valueSz:  uint64(vsz),
         valuePos: offset + 16 + uint64(ksz), // Points directly to the Value [cite: 113]
         tstamp:   uint64(timestamp),
     }
+	
 
 
-
-
-
-    
+	return "OK" , nil
 
 
 }
 
-func get()
+func get(directoryName string , string key) string , err{
+      registryMutex.Rlock()
+	  dir, exists := registryMap[directoryName]
+	  registryMutex.RUnlock()
+
+	  
+	
+      if !exists {
+          nil , fmt.Errorf("this directory is not opened ")    
+	  }
+
+	  if !dir.isOpen {
+          nil , fmt.Errorf("this directory is not opened ")  
+	  }
+
+
+
+	 //read from the index 
+
+	 dir.indexMutex.Rlock()
+	 value,exist:=inMemoryIndex[key]
+	 dir.indexMutex.RUnlock()
+
+	 if !exist {
+		return nil , fmt.Errorf("this key does not exist in the index ")
+	 }
+
+	 // logic 
+
+
+
+
+
+
+	  
+}
 
 func encodeEntry(entry *Entry) []byte , int ,uint64{
     
-	 recordSize:=16 + entry.valueSize + entry.keySz    // 16(4(crc) + 4 ()+ 4() + 4() + vriablesize + variable size)
+	 recordSize:=16 + entry.valueSize + entry.keySz    // 16(4(crc) + 4 (tmstmp)+ 4(keySz) + 4(valSz) + vriablesize + variable size)
      buf:=make(byte,recordSize)
 
 	 // calculated once and used in map (index) and in the file 
