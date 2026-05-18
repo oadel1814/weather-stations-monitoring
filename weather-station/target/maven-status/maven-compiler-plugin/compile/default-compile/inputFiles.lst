@@ -1,0 +1,4 @@
+/home/muhammed-atef/weather-stations-monitoring/weather-station/src/main/java/com/data_aquisition/streams/RainDetectorStream.java
+/home/muhammed-atef/weather-stations-monitoring/weather-station/src/main/java/com/data_aquisition/producer/WeatherStationProducer.java
+/home/muhammed-atef/weather-stations-monitoring/weather-station/src/main/java/com/data_aquisition/model/Weather.java
+/home/muhammed-atef/weather-stations-monitoring/weather-station/src/main/java/com/data_aquisition/model/WeatherMessage.java

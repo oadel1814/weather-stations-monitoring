@@ -1,0 +1,4 @@
+com/data_aquisition/streams/RainDetectorStream.class
+com/data_aquisition/model/Weather.class
+com/data_aquisition/model/WeatherMessage.class
+com/data_aquisition/producer/WeatherStationProducer.class
