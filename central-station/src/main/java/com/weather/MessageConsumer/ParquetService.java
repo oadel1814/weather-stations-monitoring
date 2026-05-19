@@ -29,16 +29,14 @@ public class ParquetService implements IParquet {
     private static final int BATCH_SIZE = 10_000;
     private static final long FLUSH_INTERVAL = 5; // I chose this interval to balance between the latency and demo in the discussion
     private static final Configuration HADOOP_CONF = new Configuration();
-
+    private static final String baseDir = "/data/parquet" + Instant.now().getEpochSecond();
     private final Schema schema;
-    private final String baseDir;
     private List<WeatherMessage> buffer = new ArrayList<>();
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor();
 
 
-    public ParquetService(String baseDir) throws IOException {
-        this.baseDir = baseDir;
+    public ParquetService() throws IOException {
         this.schema  = new Schema.Parser().parse(
                 getClass().getResourceAsStream("/weather.avsc"));
 

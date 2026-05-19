@@ -18,13 +18,14 @@ public class RecordProcessor {
     }
 
     public void process(WeatherMessage weatherMessage){
+        log.info("process() called");
         log.info("Processing Station: {} | Seq: {} | Temp: {}C | Humidity: {}%",
                 weatherMessage.station_id,
                 weatherMessage.s_no,
                 weatherMessage.weather.temperature,
                 weatherMessage.weather.humidity);
 //          bitcaskService.process(weatherMessage);
-//          parquetService.process(weatherMessage);
+          parquetService.process(weatherMessage);
     }
 
 

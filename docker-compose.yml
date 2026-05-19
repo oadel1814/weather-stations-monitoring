@@ -67,6 +67,8 @@ services:
       - kafka
     environment:
       - KAFKA_BROKER=kafka:29092
+    volumes:
+      - ./parquet-data:/data
     networks:
       - elasticnet
 
