@@ -22,14 +22,16 @@ public class WeatherDataConsumer  implements  Runnable{
     private final ObjectMapper objectMapper;  // will bes used in the deserialization from json to object message
     private final AtomicBoolean running = new AtomicBoolean(true);
 
-    private final RecordProcessor recoredProcessor;
+    private final RecordProcessor recordProcessor;
 
-    public WeatherDataConsumer(Properties config, RecordProcessor recoredProcessor){
-        this.recoredProcessor=recoredProcessor;
+    public WeatherDataConsumer(Properties config, RecordProcessor recordProcessor){
+        this.recordProcessor =recordProcessor;
         this.consumer= new KafkaConsumer<>(config);
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     }
+
+
     @Override
     public void run() {
         try {
@@ -41,9 +43,9 @@ public class WeatherDataConsumer  implements  Runnable{
                     for (ConsumerRecord<String,String> record : records){
                         String jsonValue = record.value();
                         WeatherMessage weather = objectMapper.readValue(jsonValue, WeatherMessage.class);
-                        recoredProcessor.process(weather);
+                        recordProcessor.process(weather);
                     }
-                    // it is non blocking commit commits and go up to take the next patch
+                    // it is non-blocking commit commits and go up to take the next patch
                     consumer.commitAsync();
                 }
             }

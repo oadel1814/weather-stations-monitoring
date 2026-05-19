@@ -8,13 +8,13 @@ import org.slf4j.LoggerFactory;
 
 public class RecordProcessor {
 
-    private static final Logger log = LoggerFactory.getLogger(WeatherDataConsumer.class);
+    private static final Logger log = LoggerFactory.getLogger(RecordProcessor.class);
     //private final IBitcask bitcaskService;
     private final IParquet parquetService;
 
     public RecordProcessor(IBitcask bitcaskService ,IParquet parquetService){
        // this.bitcaskService=bitcaskService;
-        this.parquetService=parquetService;
+        this.parquetService = parquetService;
     }
 
     public void process(WeatherMessage weatherMessage){
