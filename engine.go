@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
+	"sort"
 	"sync"
 	"time"
 )
@@ -39,16 +40,17 @@ type MapValue struct {
 }
 
 type Directory struct {
-	indexMutex     sync.RWMutex
-	inMemoryIndex  map[string]MapValue
-	activeWorkers  uint32
-	activeFileId   uint32
-	activeFile     *os.File
-	directoryFiles map[uint32]*os.File
-	syncOnPut      bool
-	readWrite      bool
-	isOpen         bool
-	directoryName  string
+	indexMutex    sync.RWMutex
+	inMemoryIndex map[string]MapValue //key => metadata
+	//activeWorkers  uint32
+	activeFileId    uint32
+	activeFile      *os.File
+	currMergeFileId uint32
+	directoryFiles  map[uint32]*os.File
+	syncOnPut       bool
+	readWrite       bool
+	isOpen          bool
+	directoryName   string
 }
 
 type Options struct {
@@ -67,7 +69,6 @@ type Entry struct {
 }
 
 func open(directoryName string, options *Options) (*Directory, error) {
-
 	// first booting all metadata
 	bootOnce.Do(func() {
 		//bitcask_boot()
@@ -128,7 +129,7 @@ func put(directoryName string, key string, value string) (string, error) {
 	registryMutex.RUnlock()
 
 	if !exists || !dir.isOpen {
-		return "", fmt.Errorf("directory is opened in read-only mode")
+		return "", fmt.Errorf("directory is not existed or not opened")
 	}
 
 	if !dir.readWrite {
@@ -180,6 +181,181 @@ func put(directoryName string, key string, value string) (string, error) {
 
 	return "OK", nil
 
+	// registryMutex.Unlock()
+
+}
+
+func merge(directoryName string) error {
+	registryMutex.RLock()
+	dir, exists := registryMap[directoryName]
+	registryMutex.RUnlock()
+
+	if !exists || !dir.isOpen {
+		return fmt.Errorf("directory not opened or does not exist")
+	}
+
+	// 1. Get and Sort File IDs to maintain chronological order
+	var fileIDs []int
+	dir.indexMutex.RLock()
+	for id := range dir.directoryFiles {
+		// We don't merge the active file
+		if id != dir.activeFileId {
+			fileIDs = append(fileIDs, int(id))
+		}
+	}
+	dir.indexMutex.RUnlock()
+	sort.Ints(fileIDs)
+
+	if len(fileIDs) == 0 {
+		return nil // Nothing to merge
+	}
+
+	// Track the range of files we are compacting
+	firstFileClosed := uint32(fileIDs[0])
+	// lastClosedFile := uint32(fileIDs[len(fileIDs)-1])
+
+	// Temporary tracking for the new merged segments
+	// FIX 1: start from activeFileId+1000 so merge IDs never collide with real data files
+	// use a local counter so we never touch dir.currMergeFileId outside the lock
+	localMergeCounter := dir.activeFileId + 1000
+	currMergeFileID := localMergeCounter
+
+	var generatedMergeIDs []uint32
+
+	// Initialize first merge files
+	mergedDataPath := fmt.Sprintf("%s/%d.data.merge", dir.directoryName, currMergeFileID)
+	mergedHintPath := fmt.Sprintf("%s/%d.hint.merge", dir.directoryName, currMergeFileID)
+
+	mFile, err := os.OpenFile(mergedDataPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+	hFile, err := os.OpenFile(mergedHintPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+
+	generatedMergeIDs = append(generatedMergeIDs, currMergeFileID)
+
+	for _, fileID := range fileIDs {
+
+		filePath := fmt.Sprintf("%s/%d.data", dir.directoryName, fileID)
+
+		file, err := os.Open(filePath)
+		if err != nil {
+			continue
+		}
+
+		info, _ := file.Stat()
+		fileSize := info.Size()
+		var offset int64 = 0
+
+		for offset < fileSize {
+
+			// Read 16 bytes metadata
+			headerBuf := make([]byte, 16)
+			file.ReadAt(headerBuf, offset)
+
+			tstmp := binary.BigEndian.Uint32(headerBuf[4:8])
+			keySize := binary.BigEndian.Uint32(headerBuf[8:12])
+			valueSize := binary.BigEndian.Uint32(headerBuf[12:16])
+			totalRecordSize := int64(16 + keySize + valueSize)
+
+			dataBuffer := make([]byte, keySize+valueSize)
+			file.ReadAt(dataBuffer, offset+16)
+
+			key := string(dataBuffer[0:keySize])
+
+			// THE LIVE CHECK
+			dir.indexMutex.RLock()
+			indexValue, exist := dir.inMemoryIndex[key]
+			dir.indexMutex.RUnlock()
+
+			// Skip if deleted or if a newer version exists in another file
+			if !exist || indexValue.tstamp > uint64(tstmp) || indexValue.fileID != uint32(fileID) || indexValue.valuePos != uint64(offset) {
+				offset += totalRecordSize
+				continue
+			}
+
+			// ROTATION
+			mStat, _ := mFile.Stat()
+			if uint64(mStat.Size())+uint64(totalRecordSize) > MaxSegmentSize {
+				mFile.Sync()
+				mFile.Close()
+				hFile.Sync()
+				hFile.Close()
+
+				// increment local counter only, never touch dir.currMergeFileId here
+				localMergeCounter++
+				currMergeFileID = localMergeCounter
+				generatedMergeIDs = append(generatedMergeIDs, currMergeFileID)
+
+				mFile, _ = os.OpenFile(fmt.Sprintf("%s/%d.data.merge", dir.directoryName, currMergeFileID), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+				hFile, _ = os.OpenFile(fmt.Sprintf("%s/%d.hint.merge", dir.directoryName, currMergeFileID), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+			}
+
+			// Write to Merge Data File
+			mInfo, _ := mFile.Stat()
+			writePos := mInfo.Size()
+
+			//this is the combined record => data(dataBuffer) + metadata(headerBuf)
+			combined := make([]byte, totalRecordSize)
+			copy(combined[:16], headerBuf)
+			copy(combined[16:], dataBuffer)
+			mFile.Write(combined)
+
+			// Write to Hint File: [tstamp][ksz][vsz][value_pos][key]
+			hintHeader := make([]byte, 16+8)
+			copy(hintHeader[0:16], headerBuf)
+			binary.BigEndian.PutUint64(hintHeader[16:24], uint64(writePos))
+			hFile.Write(append(hintHeader, []byte(key)...))
+
+			offset += totalRecordSize
+		}
+		file.Close()
+	}
+
+	mFile.Sync()
+	mFile.Close()
+	hFile.Sync()
+	hFile.Close()
+
+	// ATOMIC SWAP: Replacing old files with merged segments
+
+	dir.indexMutex.Lock()
+	defer dir.indexMutex.Unlock()
+
+	// 1. Close and Delete originals
+	for _, id := range fileIDs {
+		uID := uint32(id)
+		if f, exists := dir.directoryFiles[uID]; exists {
+			f.Close()
+		}
+		os.Remove(fmt.Sprintf("%s/%d.data", dir.directoryName, uID))
+		delete(dir.directoryFiles, uID)
+	}
+
+	// Promote .merge files to real .data files using your ID batching strategy
+	for idx, tempID := range generatedMergeIDs {
+		finalID := firstFileClosed + uint32(idx)
+
+		oldData := fmt.Sprintf("%s/%d.data.merge", dir.directoryName, tempID)
+		newData := fmt.Sprintf("%s/%d.data", dir.directoryName, finalID)
+		os.Rename(oldData, newData)
+
+		oldHint := fmt.Sprintf("%s/%d.hint.merge", dir.directoryName, tempID)
+		newHint := fmt.Sprintf("%s/%d.hint", dir.directoryName, finalID)
+		os.Rename(oldHint, newHint)
+
+		// Open the newly promoted file for the directory map
+		fPtr, _ := os.OpenFile(newData, os.O_RDWR, 0666)
+		dir.directoryFiles[finalID] = fPtr
+	}
+
+	//  write the final counter back to the struct only here, while the lock is held
+	dir.currMergeFileId = localMergeCounter
+
+	return nil
 }
 
 func get(directoryName string, key string) (string, error) {
@@ -337,6 +513,7 @@ func encodeEntry(entry *Entry) ([]byte, int, uint32) {
 
 	copy(buf[16:16+entry.keySize], entry.key)
 	copy(buf[16+entry.keySize:], entry.value)
+	// copy => entry key exists (search)
 
 	checksum := crc32.ChecksumIEEE(buf[4:])
 	binary.BigEndian.PutUint32(buf[0:4], checksum)
