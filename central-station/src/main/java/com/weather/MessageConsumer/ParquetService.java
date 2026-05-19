@@ -26,10 +26,10 @@ import org.slf4j.LoggerFactory;
 public class ParquetService implements IParquet {
 
     private static final Logger log = LoggerFactory.getLogger(ParquetService.class);
-    private static final int BATCH_SIZE = 10_000;
-    private static final long FLUSH_INTERVAL = 5; // I chose this interval to balance between the latency and demo in the discussion
+    private static final int BATCH_SIZE = 600; // I chose this batch size to balance between the latency and demo in the discussion
+    private static final long FLUSH_INTERVAL = 60; // I chose this interval to balance between the latency and demo in the discussion
     private static final Configuration HADOOP_CONF = new Configuration();
-    private static final String baseDir = "/data/parquet" + Instant.now().getEpochSecond();
+    private static final String baseDir = "/data/parquet/" + Instant.now().getEpochSecond();
     private final Schema schema;
     private List<WeatherMessage> buffer = new ArrayList<>();
     private final ScheduledExecutorService scheduler =
@@ -42,7 +42,7 @@ public class ParquetService implements IParquet {
 
 
         scheduler.scheduleAtFixedRate(this::flushIfNotEmpty,
-                FLUSH_INTERVAL, FLUSH_INTERVAL, TimeUnit.MINUTES);
+                FLUSH_INTERVAL, FLUSH_INTERVAL, TimeUnit.SECONDS);
 
         // I added this to handle the edge case of the service shutdown with number of message less than the configured batch size
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

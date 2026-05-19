@@ -35,7 +35,7 @@ services:
       discovery.type: single-node
       ES_JAVA_OPTS: -Xmx512m -Xms512m
       node.name: crud-node
-      cluster.name: elastic-crash-course
+      cluster.name: weather-stations-monitoring
     volumes:
       - ./elastic/data:/usr/share/elasticsearch/data
     networks:
@@ -56,9 +56,7 @@ services:
     depends_on:
       - elasticsearch
 
-  # ==========================================
-  # CENTRAL STATION CONSUMER
-  # ==========================================
+
   central-station:
     build:
       context: ./central-station
@@ -67,14 +65,14 @@ services:
       - kafka
     environment:
       - KAFKA_BROKER=kafka:29092
+      - JAVA_TOOL_OPTIONS=-Djava.security.manager=allow
     volumes:
       - ./parquet-data:/data
+      - ./bitcask-data:/bitcask
     networks:
       - elasticnet
 
-  # ==========================================
-  # 10 WEATHER STATION PRODUCERS
-  # ==========================================
+
   weather-station-1:
     build:
       context: ./weather-station
@@ -132,6 +130,23 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=5
+    networks:
+      - elasticnet
+
+
+  es-worker:
+    build:
+      context: ./es-worker
+    container_name: es-worker
+    depends_on:
+      - elasticsearch
+      - central-station
+    environment:
+      - ES_URL=http://elasticsearch:9200/_bulk
+      - PARQUET_DIR=/data
+      - POLL_INTERVAL=300
+    volumes:
+      - ./parquet-data:/data
     networks:
       - elasticnet
 
