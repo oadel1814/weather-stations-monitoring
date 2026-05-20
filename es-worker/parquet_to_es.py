@@ -5,105 +5,126 @@ import requests
 import pyarrow.parquet as pq
 
 # Environment variables
-PARQUET_DIR = os.getenv("PARQUET_DIR", "/data")
-ES_URL = os.getenv("ES_URL", "http://elasticsearch:9200/_bulk")
-INDEX_NAME = os.getenv("INDEX_NAME", "weather_statuses")
-STATE_FILE = os.path.join(PARQUET_DIR, "indexed_state.txt")
-POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
+PARQUET_DIR   = os.getenv("PARQUET_DIR",  "/data/parquet")
+ES_URL        = os.getenv("ES_URL",       "http://elasticsearch:9200/_bulk")
+INDEX_NAME    = os.getenv("INDEX_NAME",   "weather_statuses")
+STATE_FILE    = os.getenv("STATE_FILE",   "/data/indexed_state.json")
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "360"))
 
-def load_state():
+def load_state() -> dict:
+    """Load indexed files state. Returns dict: filepath -> record_count."""
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return set(line.strip() for line in f)
-    return set()
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            print("WARNING: State file corrupted, starting fresh.")
+    return {}
 
-def save_state(filepath):
-    with open(STATE_FILE, "a") as f:
-        f.write(filepath + "\n")
+def save_state(state: dict):
+    """Atomically write state to disk using a temp file + rename."""
+    tmp = STATE_FILE + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(state, f, indent=2)
+        os.replace(tmp, STATE_FILE)
+    except IOError as e:
+        print(f"WARNING: Failed to save state: {e}")
+
+
 
 def wait_for_elasticsearch():
     health_url = ES_URL.replace("/_bulk", "/_cluster/health")
     while True:
         try:
-            response = requests.get(health_url, timeout=5)
-            if response.status_code == 200:
+            r = requests.get(health_url, timeout=5)
+            if r.status_code == 200:
                 print("Elasticsearch is ready.")
-                break
+                return
         except requests.exceptions.RequestException:
             pass
-        print("Waiting for Elasticsearch to become available...")
+        print("Waiting for Elasticsearch...")
         time.sleep(5)
 
+def send_to_es(rows: list, filename: str) -> bool:
+    """Send rows to ES bulk API. Returns True on success."""
+    body = ""
+    for row in rows:
+        station_id  = row.get("station_id")
+        sequence_no = row.get("s_no")
+        doc_id      = f"st_{station_id}_seq_{sequence_no}"
+        body += json.dumps({"index": {"_index": INDEX_NAME, "_id": doc_id}}) + "\n"
+        body += json.dumps(row) + "\n"
+
+    try:
+        response = requests.post(
+            ES_URL,
+            data=body,
+            headers={"Content-Type": "application/x-ndjson"},
+            timeout=30
+        )
+        if response.status_code == 200 and not response.json().get("errors"):
+            return True
+        else:
+            print(f"✗ ES rejected {filename}: {response.text[:300]}")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"✗ ES request failed for {filename}: {e}")
+        return False
+
+
 def poll_and_index():
-    print(f"Checking {PARQUET_DIR} for new partitioned Parquet datasets...")
-    indexed = load_state()
+    print(f"Checking {PARQUET_DIR} for new Parquet files...")
 
-    # Check top-level items in the /data directory instead of walking deep
-    for item in os.listdir(PARQUET_DIR):
-        filepath = os.path.join(PARQUET_DIR, item)
+    # load state once per poll cycle — not on every file
+    state = load_state()
+    state_changed = False
 
-        # We only care about directories (this skips our indexed_state.txt file)
-        # We also skip hidden folders or the 'parquet' folder if it's just a base dir
-        if not os.path.isdir(filepath) or item.startswith('.') or item == 'parquet':
-            continue
-
-        # If we already indexed this batch folder, skip it
-        if filepath in indexed:
-            continue
-
-        try:
-            # Point PyArrow at the top-level batch folder.
-            # It will automatically find and read the year=2026/... partitions!
-            print(f"Reading dataset directory: {item}")
-            table = pq.read_table(filepath)
-            rows = table.to_pylist()
-
-            if not rows:
-                print(f"Dataset {item} is empty.")
+    for root, dirs, files in os.walk(PARQUET_DIR):
+        # sort files so we process them in chronological order
+        for filename in sorted(files):
+            if not filename.endswith(".parquet"):
                 continue
 
-            body = ""
-            for row in rows:
-                station_id = row.get("station_id")
-                sequence_no = row.get("s_no")
+            filepath = os.path.join(root, filename)
 
-                if station_id is not None and sequence_no is not None:
-                    doc_id = f"st_{station_id}_seq_{sequence_no}"
-                else:
-                    doc_id = f"st_{station_id}_ts_{row.get('status_timestamp')}"
+            # idempotency check, skip already indexed files
+            if filepath in state:
+                continue
 
-                action_metadata = {
-                    "index": {
-                        "_index": INDEX_NAME,
-                        "_id": doc_id
+            try:
+                table = pq.read_table(filepath)
+                rows  = table.to_pylist()
+
+                if not rows:
+                    print(f"Empty file, skipping: {filename}")
+                    # mark empty files as indexed so we don't retry them forever
+                    state[filepath] = {"records": 0, "indexed_at": time.time()}
+                    state_changed = True
+                    continue
+
+                print(f"Reading {filename} ({len(rows)} records)...")
+
+                if send_to_es(rows, filename):
+                    state[filepath] = {
+                        "records":    len(rows),
+                        "indexed_at": time.time()
                     }
-                }
+                    state_changed = True
+                    print(f"✓ Indexed {filename} ({len(rows)} records)")
 
-                body += json.dumps(action_metadata) + "\n"
-                body += json.dumps(row) + "\n"
+            except Exception as e:
+                # file may still be written by Java — will retry next poll
+                print(f"Skipping {filename} — may still be writing. Error: {e}")
 
-            print(f"Sending {len(rows)} records to Elasticsearch...")
-            response = requests.post(
-                ES_URL,
-                data=body,
-                headers={"Content-Type": "application/x-ndjson"},
-                timeout=15 # slightly higher timeout for bulk inserts
-            )
-
-            if response.status_code == 200 and not response.json().get("errors"):
-                save_state(filepath)
-                indexed.add(filepath)
-                print(f"✅ Successfully indexed dataset {item}")
-            else:
-                print(f"❌ Elasticsearch rejected payload for {item}: {response.text}")
-
-        except Exception as e:
-            print(f"Dataset {item} might still be writing. Will retry. Error: {str(e)}")
+    # save state once per poll cycle only if something changed
+    if state_changed:
+        save_state(state)
+        print(f"State saved — {len(state)} files indexed total.")
 
 if __name__ == "__main__":
     print("Starting Parquet-to-Elasticsearch worker...")
     wait_for_elasticsearch()
-
     while True:
         poll_and_index()
         time.sleep(POLL_INTERVAL)

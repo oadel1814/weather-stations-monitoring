@@ -67,7 +67,7 @@ services:
       - KAFKA_BROKER=kafka:29092
       - JAVA_TOOL_OPTIONS=-Djava.security.manager=allow
     volumes:
-      - ./parquet-data:/data
+      - ./parquet-data:/data/parquet
       - ./bitcask-data:/bitcask
     networks:
       - elasticnet
@@ -143,10 +143,10 @@ services:
       - central-station
     environment:
       - ES_URL=http://elasticsearch:9200/_bulk
-      - PARQUET_DIR=/data
-      - POLL_INTERVAL=300
+      - PARQUET_DIR=/data/parquet
+      - POLL_INTERVAL=360
     volumes:
-      - ./parquet-data:/data
+      - ./parquet-data:/data/parquet
     networks:
       - elasticnet
 

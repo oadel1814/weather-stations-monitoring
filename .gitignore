@@ -2,3 +2,5 @@ target
 out
 .gitignore
 elastic
+bitcask-data
+parquet-data
