@@ -1,6 +1,21 @@
 target
-out
 .gitignore
 elastic
 bitcask-data
 parquet-data
+
+# IDE
+.settings/
+.classpath
+.project
+.idea/
+*.iml
+
+# Build output
+target/
+out/
+*.log
+bitcask-core/out.log
+
+# OS
+.DS_Store

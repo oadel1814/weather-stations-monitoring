@@ -2,15 +2,18 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <annotationProcessing>
+      <profile default="true" name="Default" enabled="true" />
       <profile name="Maven default annotation processors profile" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="weather-station" />
         <module name="central-station" />
+        <module name="bitcask" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
+      <module name="src" target="21" />
       <module name="weather-data-acquisition" target="17" />
       <module name="weather-data-acquisition (1)" target="17" />
       <module name="weather-data-acquisition (2)" target="17" />
