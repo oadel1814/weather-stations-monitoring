@@ -83,21 +83,13 @@ func open(directoryName string, options *Options) (*Directory, error) {
 
 	// if it is not exist so it is not opened so start creating it
 	if !exists {
-		// Changed O_WRONLY to O_RDWR so we can read and write
+
 		osPerm := os.O_APPEND | os.O_CREATE | os.O_RDWR
 		os.MkdirAll(directoryName, 0755)
-		newFileName := fmt.Sprintf("%s/%d.data", directoryName, 0)
-
-		filePointer, err := os.OpenFile(newFileName, osPerm, 0666)
-		if err != nil {
-			return nil, fmt.Errorf("error creating active file: %w", err)
-		}
 
 		dir = &Directory{
 			inMemoryIndex:  make(map[string]MapValue),
-			directoryFiles: map[uint32]*os.File{0: filePointer},
-			activeFileId:   0,
-			activeFile:     filePointer,
+			directoryFiles: make(map[uint32]*os.File),
 			isOpen:         true,
 			syncOnPut:      options.syncOnPut,
 			readWrite:      options.readWrite,
@@ -105,6 +97,24 @@ func open(directoryName string, options *Options) (*Directory, error) {
 		}
 
 		registryMap[directoryName] = dir
+
+		err := dir.bistcaskBoot()
+		if err != nil {
+			delete(registryMap, directoryName)
+			return nil, fmt.Errorf("failed to boot directory: %w", err)
+		}
+
+		newFileName := fmt.Sprintf("%s/%d.data", directoryName, dir.activeFileId)
+
+		filePointer, err := os.OpenFile(newFileName, osPerm, 0666)
+		if err != nil {
+			delete(registryMap, directoryName)
+			return nil, fmt.Errorf("error creating active file: %w", err)
+		}
+
+		dir.activeFile = filePointer
+		dir.directoryFiles[dir.activeFileId] = filePointer
+
 		return dir, nil
 	}
 
@@ -532,4 +542,141 @@ func constructEntry(val string, k string) *Entry {
 		tstamp:    uint32(time.Now().Unix()),
 	}
 
+}
+
+func (dir *Directory) bistcaskBoot() error {
+	// We already have dir, so we can use dir.directoryName directly!
+	files, err := os.ReadDir(dir.directoryName)
+	if err != nil {
+		return nil
+	}
+
+	var fileIds []int
+	for _, f := range files {
+		var id int
+		if _, err := fmt.Sscanf(f.Name(), "%d.data", &id); err == nil {
+			fileIds = append(fileIds, id)
+		}
+	}
+
+	sort.Ints(fileIds)
+
+	for _, id := range fileIds {
+		uID := uint32(id)
+		hintPath := fmt.Sprintf("%s/%d.hint", dir.directoryName, id)
+		dataPath := fmt.Sprintf("%s/%d.data", dir.directoryName, id)
+
+		fPtr, err := os.OpenFile(dataPath, os.O_RDWR, 0666)
+		if err != nil {
+			continue
+		}
+		dir.directoryFiles[uID] = fPtr
+
+		if _, err := os.Stat(hintPath); err == nil {
+			//hint file exist => faster path
+			dir.loadIndexFromHint(hintPath, uID)
+		} else {
+			//data file path
+			dir.loadIndexFromData(fPtr, uID)
+		}
+	}
+
+	if len(fileIds) > 0 {
+		dir.activeFileId = uint32(fileIds[len(fileIds)-1]) + 1
+	}
+
+	return nil
+}
+
+func (dir *Directory) loadIndexFromHint(path string, fileID uint32) {
+	hintFile, _ := os.Open(path)
+	defer hintFile.Close()
+
+	info, _ := hintFile.Stat()
+	var offset int64 = 0
+	for offset < info.Size() {
+
+		buf := make([]byte, 16+8)
+		hintFile.ReadAt(buf, offset)
+
+		tstamp := binary.BigEndian.Uint32(buf[4:8])
+		ksz := binary.BigEndian.Uint32(buf[8:12])
+		vsz := binary.BigEndian.Uint32(buf[12:16])
+		vpos := binary.BigEndian.Uint64(buf[16:24])
+
+		keyBuf := make([]byte, ksz)
+		hintFile.ReadAt(keyBuf, offset+24)
+		key := string(keyBuf)
+
+		isTombstone := false
+		if vsz == uint32(len(Tombstone)) {
+			valBuf := make([]byte, vsz)
+			if fPtr, ok := dir.directoryFiles[fileID]; ok {
+				// The value in the data file starts after the 16-byte header and the key
+				fPtr.ReadAt(valBuf, int64(vpos)+16+int64(ksz))
+				if string(valBuf) == Tombstone {
+					isTombstone = true
+				}
+			}
+		}
+
+		if isTombstone {
+
+			delete(dir.inMemoryIndex, key)
+		} else {
+
+			dir.inMemoryIndex[key] = MapValue{
+				fileID:   fileID,
+				valueSz:  uint64(vsz),
+				valuePos: vpos,
+				tstamp:   uint64(tstamp),
+			}
+		}
+
+		offset += int64(24 + ksz)
+	}
+}
+
+func (dir *Directory) loadIndexFromData(file *os.File, fileID uint32) {
+	info, err := file.Stat()
+	if err != nil {
+		return
+	}
+	fileSize := info.Size()
+	var offset int64 = 0
+
+	for offset < fileSize {
+		// Read 16-byte metadata
+		headerBuf := make([]byte, 16)
+		file.ReadAt(headerBuf, offset)
+
+		tstamp := binary.BigEndian.Uint32(headerBuf[4:8])
+		ksz := binary.BigEndian.Uint32(headerBuf[8:12])
+		vsz := binary.BigEndian.Uint32(headerBuf[12:16])
+
+		// Read the Key
+		keyBuf := make([]byte, ksz)
+		file.ReadAt(keyBuf, offset+16)
+		key := string(keyBuf)
+
+		// Read the Value
+		valBuf := make([]byte, vsz)
+		file.ReadAt(valBuf, offset+16+int64(ksz))
+		val := string(valBuf)
+
+		if val == Tombstone {
+			// If it's a deletion => remove it from the index
+			delete(dir.inMemoryIndex, key)
+		} else {
+
+			dir.inMemoryIndex[key] = MapValue{
+				fileID:   fileID,
+				valueSz:  uint64(vsz),
+				valuePos: uint64(offset),
+				tstamp:   uint64(tstamp),
+			}
+		}
+
+		offset += int64(16 + ksz + vsz)
+	}
 }
