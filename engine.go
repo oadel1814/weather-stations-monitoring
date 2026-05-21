@@ -6,67 +6,8 @@ import (
 	"hash/crc32"
 	"os"
 	"sort"
-	"sync"
 	"time"
 )
-
-const (
-	// Arbitrary threshold for file rotation
-	MaxSegmentSize = 100 * 1024 * 1024 // 100 MB
-
-	// Arbitrary limit to prevent a single huge write from breaking the buffer
-	MaxRecordSize = 1 * 1024 * 1024 // 1 MB
-
-	Tombstone = "$"
-)
-
-var (
-
-	// mutex on the registery shared map
-	// Changed to RWMutex so your .RLock() calls work
-	registryMutex sync.RWMutex
-
-	// in memory version of the directories metadata
-	registryMap = make(map[string]*Directory)
-
-	bootOnce sync.Once
-)
-
-type MapValue struct {
-	fileID   uint32 // Changed to uint32 to match directoryFiles map
-	valueSz  uint64
-	valuePos uint64 // offset to start reading
-	tstamp   uint64 // timestamp of last update
-}
-
-type Directory struct {
-	indexMutex    sync.RWMutex
-	inMemoryIndex map[string]MapValue //key => metadata
-	//activeWorkers  uint32
-	activeFileId    uint32
-	activeFile      *os.File
-	currMergeFileId uint32
-	directoryFiles  map[uint32]*os.File
-	syncOnPut       bool
-	readWrite       bool
-	isOpen          bool
-	directoryName   string
-}
-
-type Options struct {
-	syncOnPut bool
-	readWrite bool
-}
-
-// entry in the file
-type Entry struct {
-	value     string
-	key       string
-	valueSize uint32 // Sizes are 32-bit for binary encoding
-	keySize   uint32
-	tstamp    uint32
-	crc       uint32
-}
 
 func open(directoryName string, options *Options) (*Directory, error) {
 	// first booting all metadata
@@ -232,6 +173,8 @@ func merge(directoryName string) error {
 
 	var generatedMergeIDs []uint32
 
+	pendingIndexUpdates := make(map[string]MapValue)
+
 	// Initialize first merge files
 	mergedDataPath := fmt.Sprintf("%s/%d.data.merge", dir.directoryName, currMergeFileID)
 	mergedHintPath := fmt.Sprintf("%s/%d.hint.merge", dir.directoryName, currMergeFileID)
@@ -319,7 +262,13 @@ func merge(directoryName string) error {
 			copy(hintHeader[0:16], headerBuf)
 			binary.BigEndian.PutUint64(hintHeader[16:24], uint64(writePos))
 			hFile.Write(append(hintHeader, []byte(key)...))
-
+			currentFinalID := firstFileClosed + uint32(len(generatedMergeIDs)-1)
+			pendingIndexUpdates[key] = MapValue{
+				fileID:   currentFinalID,
+				valueSz:  uint64(valueSize),
+				valuePos: uint64(writePos),
+				tstamp:   uint64(tstmp),
+			}
 			offset += totalRecordSize
 		}
 		file.Close()
@@ -364,6 +313,15 @@ func merge(directoryName string) error {
 
 	//  write the final counter back to the struct only here, while the lock is held
 	dir.currMergeFileId = localMergeCounter
+
+	for k, newMeta := range pendingIndexUpdates {
+		// Safety check: Only update if a concurrent PUT hasn't overwritten this key while we were merging
+		if currentMeta, exists := dir.inMemoryIndex[k]; exists {
+			if currentMeta.tstamp <= newMeta.tstamp {
+				dir.inMemoryIndex[k] = newMeta
+			}
+		}
+	}
 
 	return nil
 }
@@ -635,6 +593,21 @@ func (dir *Directory) loadIndexFromHint(path string, fileID uint32) {
 
 		offset += int64(24 + ksz)
 	}
+}
+
+func listDirectories() {
+	registryMutex.RLock()
+	defer registryMutex.RUnlock()
+
+	if len(registryMap) == 0 {
+		fmt.Println("No directories found.")
+		return
+	}
+	fmt.Println("Existing Directories:")
+	for dirName := range registryMap {
+		fmt.Printf("- %s\n", dirName)
+	}
+
 }
 
 func (dir *Directory) loadIndexFromData(file *os.File, fileID uint32) {
