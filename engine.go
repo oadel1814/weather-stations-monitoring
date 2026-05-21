@@ -166,7 +166,7 @@ func merge(directoryName string) error {
 	// lastClosedFile := uint32(fileIDs[len(fileIDs)-1])
 
 	// Temporary tracking for the new merged segments
-	// FIX 1: start from activeFileId+1000 so merge IDs never collide with real data files
+	// start from activeFileId+1000 so merge IDs never collide with real data files
 	// use a local counter so we never touch dir.currMergeFileId outside the lock
 	localMergeCounter := dir.activeFileId + 1000
 	currMergeFileID := localMergeCounter
@@ -315,7 +315,7 @@ func merge(directoryName string) error {
 	dir.currMergeFileId = localMergeCounter
 
 	for k, newMeta := range pendingIndexUpdates {
-		// Safety check: Only update if a concurrent PUT hasn't overwritten this key while we were merging
+		// Only update if a concurrent PUT hasn't overwritten this key while we were merging
 		if currentMeta, exists := dir.inMemoryIndex[k]; exists {
 			if currentMeta.tstamp <= newMeta.tstamp {
 				dir.inMemoryIndex[k] = newMeta
@@ -503,7 +503,7 @@ func constructEntry(val string, k string) *Entry {
 }
 
 func (dir *Directory) bistcaskBoot() error {
-	// We already have dir, so we can use dir.directoryName directly!
+	// We already have dir => so we can use dir.directoryName directly
 	files, err := os.ReadDir(dir.directoryName)
 	if err != nil {
 		return nil
