@@ -29,7 +29,7 @@ public class ParquetService implements IParquet {
     private static final int BATCH_SIZE = 10_000;
     private static final long FLUSH_INTERVAL = 5; // I chose this interval to balance between the latency and demo in the discussion
     private static final Configuration HADOOP_CONF = new Configuration();
-    private static final String baseDir = "/data/parquet";
+    String parquetDir = System.getenv().getOrDefault("PARQUET_DIR", "/data/parquet");
     private final Schema schema;
     private List<WeatherMessage> buffer = new ArrayList<>();
     private final ScheduledExecutorService scheduler =
@@ -78,7 +78,7 @@ public class ParquetService implements IParquet {
         // Partition path based on current date
         LocalDate today = LocalDate.now();
         String partitionPath = String.format("%s/year=%d/month=%02d/day=%02d",
-                baseDir,
+                parquetDir,
                 today.getYear(),
                 today.getMonthValue(),
                 today.getDayOfMonth());

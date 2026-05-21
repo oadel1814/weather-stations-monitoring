@@ -1,8 +1,9 @@
 package com.weather.MessageConsumer.interfaces;
 
-import com.weather.model.Weather;
+
+import com.weather.model.WeatherMessage;
 
 public interface IBitcask {
-//    void process(Weather weather);
+    void process(WeatherMessage msg);
     // to be continued
 }

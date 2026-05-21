@@ -7,6 +7,7 @@
         <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/weather-station/pom.xml" />
         <option value="$PROJECT_DIR$/central-station/pom.xml" />
+        <option value="$PROJECT_DIR$/bitcask-core/pom.xml" />
       </list>
     </option>
   </component>

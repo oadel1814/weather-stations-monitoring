@@ -59,16 +59,19 @@ services:
 
   central-station:
     build:
-      context: ./central-station
+      context: .
+      dockerfile: central-station/Dockerfile
     container_name: central-station
     depends_on:
       - kafka
     environment:
       - KAFKA_BROKER=kafka:29092
       - JAVA_TOOL_OPTIONS=-Djava.security.manager=allow
+      - BITCASK_DIR=/data/bitcask
+      - PARQUET_DIR=/data/parquet
     volumes:
       - ./parquet-data:/data/parquet
-      - ./bitcask-data:/bitcask
+      - ./bitcask-data:/data/bitcask
     networks:
       - elasticnet
 
