@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.ddia.bitcask.grpc";
+option java_outer_classname = "BitcaskProto";
+
+service BitcaskService {
+  rpc GetAllKeys (Empty) returns (stream KeyValueChunk);
+  rpc GetKey (KeyRequest) returns (ValueResponse);
+  rpc Put (PutRequest) returns (PutResponse);
+  rpc Merge (Empty) returns (MergeResponse);
+}
+
+message Empty {}
+
+message KeyRequest {
+  string key = 1;
+}
+
+message ValueResponse {
+  string value = 1;
+  bool found = 2;
+}
+
+message KeyValuePair {
+  string key = 1;
+  string value = 2;
+}
+
+message KeyValueChunk {
+  repeated KeyValuePair pairs = 1; 
+}
+
+// New Messages
+message PutRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message PutResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MergeResponse {
+  bool success = 1;
+  string message = 2;
+}
