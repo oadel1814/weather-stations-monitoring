@@ -10,13 +10,14 @@ RUN curl -sSL \
     chmod +x /usr/local/bin/buf
 
 # Copy project files first for dependency caching
-COPY pom.xml .
-COPY buf.gen.yaml .
+COPY bitcask-core/pom.xml .
+COPY bitcask-core/buf.gen.yaml .
 RUN mvn dependency:go-offline
 
-# Copy source and build
-COPY src ./src
+# Update source copy
+COPY bitcask-core/src ./src
 RUN mvn clean package -DskipTests
+
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-jammy
