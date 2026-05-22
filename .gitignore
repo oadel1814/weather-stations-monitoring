@@ -2,7 +2,7 @@
 elastic
 bitcask-data
 parquet-data
-
+csv_exports
 .settings/
 .classpath
 .project
