@@ -55,7 +55,9 @@ services:
       - elasticsearch
 
   central-station:
-    image: muhammedatef14/central-station:latest
+    build:
+      context: .
+      dockerfile: ./central-station/Dockerfile
     container_name: central-station
     depends_on:
       - kafka
@@ -122,16 +124,15 @@ services:
     networks:
       - elasticnet
 
-  weather-station-5:
+  weather-station-api:
     build:
       context: ./weather-station
-    container_name: weather-station-5
+    container_name: weather-station-api
     depends_on:
       - kafka
     environment:
       - KAFKA_BROKER=kafka:29092
-      - STATION_ID=5
-      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
+      - MAIN_CLASS=com.data_aquisition.producer.OpenMeteoChannelAdaptor
     networks:
       - elasticnet
 

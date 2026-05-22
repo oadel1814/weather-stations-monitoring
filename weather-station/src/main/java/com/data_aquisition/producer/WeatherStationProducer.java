@@ -6,10 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.data_aquisition.model.Weather;
 import com.data_aquisition.model.WeatherMessage;
 import org.apache.kafka.clients.producer.*;
-import org.apache.kafka.common.serialization.StringSerializer;
 
 import java.time.Instant;
-import java.util.Properties;
 import java.util.Random;
 
 public class WeatherStationProducer {
@@ -40,55 +38,66 @@ public class WeatherStationProducer {
         Random random = new Random();
 
         long sequence = 1;
+        WeatherMessage lastMessage = null;
 
         while (true) {
+            int scenario = random.nextInt(100);
+            WeatherMessage message;
+            boolean isNewMessage = true;
 
-            int dropChance = random.nextInt(100);
-
-            System.out.println("new message created! ");
-
-            WeatherMessage message = new WeatherMessage(
-                    stationId,
-                    sequence,
-                    generateBattery(random),
-                    Instant.now().getEpochSecond(),
-                    new Weather(
-                            random.nextInt(101),
-                            50 + random.nextInt(60),
-                            random.nextInt(120)
-                    )
-            );
-
-            sequence++;
-
-            if (dropChance < 10) {
-                System.out.println("Dropped Message: " + message.s_no);
+            if (scenario < 10) {
+                sequence++;
                 Thread.sleep(1000);
                 continue;
             }
 
-            String json = mapper.writeValueAsString(message);
+            if (scenario >= 10 && scenario < 20) {
+                message = new WeatherMessage(
+                        stationId,
+                        sequence,
+                        generateBattery(random),
+                        Instant.now().getEpochSecond(),
+                        new Weather(150, 8000, 500),
+                        "SYSTEM_PRODUCER"
+                );
+                lastMessage = message; // Cache it
+            }
+            else if (scenario >= 20 && scenario < 30 && lastMessage != null) {
+                message = lastMessage;
+                isNewMessage = false;
+            }
+            else {
+                message = new WeatherMessage(
+                        stationId,
+                        sequence,
+                        generateBattery(random),
+                        Instant.now().getEpochSecond(),
+                        new Weather(
+                                random.nextInt(101),
+                                -20 + random.nextInt(70),
+                                random.nextInt(120)
+                        ),
+                        "SYSTEM_PRODUCER"
+                );
+                lastMessage = message; // Cache it
+            }
 
-            ProducerRecord<String, String> record =
-                    new ProducerRecord<>(
-                            TOPIC,
-                            String.valueOf(stationId),
-                            json
-                    );
+            // Serialize and Send
+            String json = mapper.writeValueAsString(message);
+            ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, String.valueOf(stationId), json);
 
             producer.send(record, (metadata, exception) -> {
-
                 if (exception != null) {
                     exception.printStackTrace();
                     return;
                 }
-
-                System.out.println(
-                        "Sent -> Partition: " + metadata.partition()
-                                + " Offset: " + metadata.offset()
-                                + " Data: " + json
-                );
+                System.out.println("Sent -> Partition: " + metadata.partition() + " Offset: " + metadata.offset() + " Data: " + json);
             });
+
+            //  Only increment if we actually generated a brand new message
+            if (isNewMessage) {
+                sequence++;
+            }
 
             Thread.sleep(1000);
         }
