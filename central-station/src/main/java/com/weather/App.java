@@ -4,6 +4,8 @@ import com.weather.MessageConsumer.ParquetService;
 import com.weather.MessageConsumer.RecordProcessor;
 import com.weather.MessageConsumer.WeatherDataConsumer;
 import com.weather.infrastructure.KafkaConsumerConfig;
+import com.weather.infrastructure.KafkaProducerConfig;
+import com.weather.publishers.InvalidMessagePublisher;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +29,13 @@ public class App
 
         try {
             // 1. Initialize your processor and its services
-            RecordProcessor recordProcessor = new RecordProcessor(new BitcaskService(), new ParquetService());
+            KafkaProducerConfig producerConfigBuilder = new KafkaProducerConfig();
+            Properties producerProps = producerConfigBuilder.build();
+
+            // init producer with the configs
+            InvalidMessagePublisher invalidPublisher = new InvalidMessagePublisher(producerProps);
+
+            RecordProcessor recordProcessor = new RecordProcessor(new BitcaskService(), new ParquetService(),invalidPublisher);
 
             // 2. Get the configuration (Make sure your config class returns Properties!)
             Properties kafkaProps = KafkaConsumerConfig.setupConsumer();
