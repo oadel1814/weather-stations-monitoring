@@ -24,8 +24,7 @@ public class BitcaskServer {
   }
 
   public void start() throws IOException {
-    server =
-        ServerBuilder.forPort(PORT).addService(new BitcaskServiceImpl(bitcask)).build().start();
+    server = ServerBuilder.forPort(PORT).addService(new BitcaskServiceImpl(bitcask)).build().start();
     System.out.println("Bitcask gRPC Server started, listening on port " + PORT);
 
     Runtime.getRuntime()
@@ -64,7 +63,7 @@ public class BitcaskServer {
   }
 
   public static void main(String[] args) throws IOException, InterruptedException {
-    String dbDirectory = "/home/omar/Documents/compaction_test_db/";
+    String dbDirectory = System.getenv().getOrDefault("BITCASK_DB_DIR", "/home/omar/Documents/compaction_test_db/");
     Bitcask engine = BitcaskFactory.getInstance(dbDirectory, SyncConfig.NONE);
 
     final BitcaskServer server = new BitcaskServer(engine);
@@ -85,8 +84,7 @@ public class BitcaskServer {
     public void getAllKeys(Empty request, StreamObserver<KeyValueChunk> responseObserver) {
 
       final int MAX_BATCH_SIZE_IN_BYTES = 8 * 1024 * 1024;
-      ServerCallStreamObserver<KeyValueChunk> serverObserver =
-          (ServerCallStreamObserver<KeyValueChunk>) responseObserver;
+      ServerCallStreamObserver<KeyValueChunk> serverObserver = (ServerCallStreamObserver<KeyValueChunk>) responseObserver;
       KeyValueChunk.Builder chunkBuilder = KeyValueChunk.newBuilder();
       int currentBatchSize = 0;
 
@@ -101,8 +99,7 @@ public class BitcaskServer {
             break;
           }
 
-          KeyValuePair pair =
-              KeyValuePair.newBuilder().setKey(entry.getKey()).setValue(entry.getValue()).build();
+          KeyValuePair pair = KeyValuePair.newBuilder().setKey(entry.getKey()).setValue(entry.getValue()).build();
 
           chunkBuilder.addPairs(pair);
           currentBatchSize += entry.getKey().length() + entry.getValue().length();
@@ -117,7 +114,7 @@ public class BitcaskServer {
           }
         }
 
-        //  Send the final batch
+        // Send the final batch
         if (currentBatchSize > 0) {
           while (!serverObserver.isReady()) {
             Thread.sleep(100);
@@ -140,11 +137,10 @@ public class BitcaskServer {
       try {
         String value = bitcask.get(request.getKey());
 
-        ValueResponse response =
-            ValueResponse.newBuilder()
-                .setValue(value != null ? value : "")
-                .setFound(value != null)
-                .build();
+        ValueResponse response = ValueResponse.newBuilder()
+            .setValue(value != null ? value : "")
+            .setFound(value != null)
+            .build();
 
         responseObserver.onNext(response);
         responseObserver.onCompleted();
@@ -166,11 +162,10 @@ public class BitcaskServer {
       try {
         bitcask.put(request.getKey(), request.getValue());
 
-        PutResponse response =
-            PutResponse.newBuilder()
-                .setSuccess(true)
-                .setMessage("Successfully saved key: " + request.getKey())
-                .build();
+        PutResponse response = PutResponse.newBuilder()
+            .setSuccess(true)
+            .setMessage("Successfully saved key: " + request.getKey())
+            .build();
 
         responseObserver.onNext(response);
         responseObserver.onCompleted();
@@ -187,11 +182,10 @@ public class BitcaskServer {
       try {
         bitcask.merge();
 
-        MergeResponse response =
-            MergeResponse.newBuilder()
-                .setSuccess(true)
-                .setMessage("Compaction/Merge completed successfully.")
-                .build();
+        MergeResponse response = MergeResponse.newBuilder()
+            .setSuccess(true)
+            .setMessage("Compaction/Merge completed successfully.")
+            .build();
 
         responseObserver.onNext(response);
         responseObserver.onCompleted();

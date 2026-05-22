@@ -9,9 +9,8 @@ public class App {
   public static void main(String[] args) {
     try {
       // Initialize your actual database engine
-      Bitcask bitcask =
-          BitcaskFactory.getInstance(
-              "/home/omar/Documents/bitcaskDB/", SyncConfig.SYNC_ON_EVERY_WRITE);
+      Bitcask bitcask = BitcaskFactory.getInstance(
+          "/home/omar/Documents/bitcaskDB/", SyncConfig.SYNC_ON_EVERY_WRITE);
       Scanner scanner = new Scanner(System.in);
       System.out.println("\n=== Bitcask Interactive CLI ===");
 
@@ -22,7 +21,8 @@ public class App {
         // Read the whole line and standardize it to lowercase
         String option = scanner.nextLine().trim().toLowerCase();
 
-        if (option.isEmpty()) continue;
+        if (option.isEmpty())
+          continue;
 
         switch (option) {
           case "put":
