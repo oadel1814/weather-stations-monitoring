@@ -68,7 +68,7 @@ services:
       - JAVA_TOOL_OPTIONS=-Djava.security.manager=allow
     volumes:
       - ./parquet-data:/data/parquet
-      - ./bitcask-data:/bitcask
+#      - ./bitcask-data:/data/bitcask
     networks:
       - elasticnet
 

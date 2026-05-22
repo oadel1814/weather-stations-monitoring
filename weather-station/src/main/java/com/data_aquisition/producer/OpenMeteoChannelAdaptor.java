@@ -1,5 +1,6 @@
 package com.data_aquisition.producer;
 
+import com.data_aquisition.infrastructure.KafkaProducerConfig;
 import com.data_aquisition.model.Weather;
 import com.data_aquisition.model.WeatherMessage;
 
@@ -37,33 +38,9 @@ public class OpenMeteoChannelAdaptor {
 
     public static void main(String[] args) throws Exception {
 
-        Properties props = new Properties();
+        KafkaProducerConfig config = new KafkaProducerConfig();
+        KafkaProducer<String, String> producer = new KafkaProducer<>(config.build());
 
-        String brokerUrl = System.getenv("KAFKA_BROKER") != null ?
-                System.getenv("KAFKA_BROKER") : "localhost:9092";
-
-        props.put(
-                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-                brokerUrl
-        );
-
-        props.put(
-                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-                StringSerializer.class.getName()
-        );
-
-        props.put(
-                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                StringSerializer.class.getName()
-        );
-
-        props.put(
-                ProducerConfig.ACKS_CONFIG,
-                "all"
-        );
-
-        KafkaProducer<String, String> producer =
-                new KafkaProducer<>(props);
 
         HttpClient client =
                 HttpClient.newHttpClient();

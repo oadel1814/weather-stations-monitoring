@@ -1,6 +1,7 @@
 
 package com.data_aquisition.producer;
 
+import com.data_aquisition.infrastructure.KafkaProducerConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.data_aquisition.model.Weather;
 import com.data_aquisition.model.WeatherMessage;
@@ -20,28 +21,9 @@ public class WeatherStationProducer {
         String stationEnv = System.getenv("STATION_ID");
         long stationId = stationEnv == null ? 1 : Long.parseLong(stationEnv);
 
-        Properties props = new Properties();
+        KafkaProducerConfig config = new KafkaProducerConfig();
+        KafkaProducer<String, String> producer = new KafkaProducer<>(config.build());
 
-        String brokerUrl = System.getenv("KAFKA_BROKER") != null ?
-                System.getenv("KAFKA_BROKER") : "localhost:9092";
-
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerUrl);
-
-        props.put(
-                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-                StringSerializer.class.getName()
-        );
-
-        props.put(
-                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                StringSerializer.class.getName()
-        );
-
-        props.put(ProducerConfig.ACKS_CONFIG, "all");
-        props.put(ProducerConfig.RETRIES_CONFIG, 3);
-
-        KafkaProducer<String, String> producer =
-                new KafkaProducer<>(props);
 
         ObjectMapper mapper = new ObjectMapper();
         Random random = new Random();
