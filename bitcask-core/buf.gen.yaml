@@ -1,0 +1,8 @@
+version: v1
+plugins:
+  # --- Java Plugins ---
+  - plugin: buf.build/protocolbuffers/java:v25.3
+    out: target/generated-sources/protobuf/java
+  - plugin: buf.build/grpc/java:v1.62.2
+    out: target/generated-sources/protobuf/grpc-java
+

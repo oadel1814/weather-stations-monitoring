@@ -1,0 +1,14 @@
+dontinline,*.*_all_jmhStub
+dontinline,*.*_avgt_jmhStub
+dontinline,*.*_sample_jmhStub
+dontinline,*.*_ss_jmhStub
+dontinline,*.*_thrpt_jmhStub
+inline,com/ddia/bitcask/BitcaskBenchmark$ReadState.setup
+inline,com/ddia/bitcask/BitcaskBenchmark$ReadState.teardown
+inline,com/ddia/bitcask/BitcaskBenchmark$WriteNoSyncState.setup
+inline,com/ddia/bitcask/BitcaskBenchmark$WriteNoSyncState.teardown
+inline,com/ddia/bitcask/BitcaskBenchmark$WriteSyncState.setup
+inline,com/ddia/bitcask/BitcaskBenchmark$WriteSyncState.teardown
+inline,com/ddia/bitcask/BitcaskBenchmark.BenchmarkGet
+inline,com/ddia/bitcask/BitcaskBenchmark.BenchmarkPutNoSync
+inline,com/ddia/bitcask/BitcaskBenchmark.BenchmarkPutSync
