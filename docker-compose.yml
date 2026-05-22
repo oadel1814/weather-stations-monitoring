@@ -10,14 +10,12 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-
       # Listeners
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
       # Replication
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -72,7 +70,6 @@ services:
     networks:
       - elasticnet
 
-
   weather-station-1:
     build:
       context: ./weather-station
@@ -82,6 +79,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=1
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -94,6 +92,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=2
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -106,6 +105,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=3
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -118,6 +118,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=4
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -130,9 +131,21 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=5
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
+  open-meteo-adapter:
+    build:
+      context: ./weather-station
+    container_name: open-meteo-adapter
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - MAIN_CLASS=com.data_aquisition.producer.OpenMeteoChannelAdaptor
+    networks:
+      - elasticnet
 
   es-worker:
     build:
