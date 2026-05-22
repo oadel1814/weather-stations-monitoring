@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-station
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: central-station
+  template:
+    metadata:
+      labels:
+        app: central-station
+    spec:
+      containers:
+        - name: central-station
+          image: muhammedatef14/central-station:latest 
+          imagePullPolicy: Always
+          env:
+            - name: KAFKA_BROKER
+              value: "kafka:29092"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Djava.security.manager=allow"
+            - name: BITCASK_DIR
+              value: "/data/bitcask"
+            - name: PARQUET_DIR
+              value: "/data/parquet"
+          volumeMounts:
+            - name: parquet-data
+              mountPath: /data/parquet
+            - name: bitcask-data
+              mountPath: /data/bitcask
+      volumes:
+        - name: parquet-data
+          persistentVolumeClaim:
+            claimName: parquet-data-pvc
+        - name: bitcask-data
+          persistentVolumeClaim:
+            claimName: bitcask-data-pvc

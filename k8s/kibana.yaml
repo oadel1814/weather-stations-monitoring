@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:7.11.1
+          ports:
+            - containerPort: 5601
+            - containerPort: 9600
+          env:
+            - name: SERVERNAME
+              value: "kibana"
+            - name: ELASTICSEARCH_HOSTS
+              value: "http://elasticsearch:9200"
+            - name: ES_JAVA_OPTS
+              value: "-Xmx512m -Xms512m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 5601
+    - name: backend
+      port: 9600
+  selector:
+    app: kibana

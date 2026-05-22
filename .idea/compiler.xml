@@ -7,14 +7,14 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="weather-data-acquisition" />
+        <module name="bitcask" />
         <module name="weather-station" />
         <module name="central-station" />
-        <module name="bitcask" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="src" target="21" />
-      <module name="weather-data-acquisition" target="17" />
       <module name="weather-data-acquisition (1)" target="17" />
       <module name="weather-data-acquisition (2)" target="17" />
     </bytecodeTargetLevel>

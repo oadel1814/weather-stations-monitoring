@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install the required data engineering libraries
-RUN pip install --no-cache-dir pyarrow requests
+RUN  pip install --no-cache-dir pyarrow requests
 
 COPY parquet_to_es.py .
 

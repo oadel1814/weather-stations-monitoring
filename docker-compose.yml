@@ -56,11 +56,8 @@ services:
     depends_on:
       - elasticsearch
 
-
   central-station:
-    build:
-      context: .
-      dockerfile: central-station/Dockerfile
+    image: muhammedatef14/central-station:latest
     container_name: central-station
     depends_on:
       - kafka
@@ -75,10 +72,8 @@ services:
     networks:
       - elasticnet
 
-
   weather-station-1:
-    build:
-      context: ./weather-station
+    image: muhammedatef14/weather-station:latest
     container_name: weather-station-1
     depends_on:
       - kafka
@@ -89,8 +84,7 @@ services:
       - elasticnet
 
   weather-station-2:
-    build:
-      context: ./weather-station
+    image: muhammedatef14/weather-station:latest
     container_name: weather-station-2
     depends_on:
       - kafka
@@ -101,8 +95,7 @@ services:
       - elasticnet
 
   weather-station-3:
-    build:
-      context: ./weather-station
+    image: muhammedatef14/weather-station:latest
     container_name: weather-station-3
     depends_on:
       - kafka
@@ -113,8 +106,7 @@ services:
       - elasticnet
 
   weather-station-4:
-    build:
-      context: ./weather-station
+    image: muhammedatef14/weather-station:latest
     container_name: weather-station-4
     depends_on:
       - kafka
@@ -125,8 +117,7 @@ services:
       - elasticnet
 
   weather-station-5:
-    build:
-      context: ./weather-station
+    image: muhammedatef14/weather-station:latest
     container_name: weather-station-5
     depends_on:
       - kafka
@@ -136,10 +127,8 @@ services:
     networks:
       - elasticnet
 
-
   es-worker:
-    build:
-      context: ./es-worker
+    image: muhammedatef14/es-worker:latest
     container_name: es-worker
     depends_on:
       - elasticsearch

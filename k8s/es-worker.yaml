@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: es-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: es-worker
+  template:
+    metadata:
+      labels:
+        app: es-worker
+    spec:
+      containers:
+        - name: es-worker
+          image: muhammedatef14/es-worker:latest
+          imagePullPolicy: Always
+          env:
+            - name: ES_URL
+              value: "http://elasticsearch:9200/_bulk"
+            - name: PARQUET_DIR
+              value: "/data/parquet"
+            - name: POLL_INTERVAL
+              value: "360"
+          volumeMounts:
+            - name: parquet-data
+              mountPath: /data/parquet
+      volumes:
+        - name: parquet-data
+          persistentVolumeClaim:
+            claimName: parquet-data-pvc
