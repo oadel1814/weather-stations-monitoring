@@ -16,4 +16,4 @@ WORKDIR /app
 
 COPY --from=build /app/target/*-jar-with-dependencies.jar app.jar
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java -cp app.jar $MAIN_CLASS"]

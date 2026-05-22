@@ -82,6 +82,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=1
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -94,6 +95,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=2
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -106,6 +108,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=3
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -118,6 +121,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=4
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
@@ -130,9 +134,21 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - STATION_ID=5
+      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
     networks:
       - elasticnet
 
+  open-meteo-adapter:
+    build:
+      context: ./weather-station
+    container_name: open-meteo-adapter
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - MAIN_CLASS=com.data_aquisition.producer.OpenMeteoChannelAdaptor
+    networks:
+      - elasticnet
 
   es-worker:
     build:
