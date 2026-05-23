@@ -1,5 +1,7 @@
 version: '3.8'
+
 services:
+  # --- INFRASTRUCTURE ---
   kafka:
     image: apache/kafka:latest
     container_name: kafka
@@ -10,13 +12,11 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      # Listeners
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # Replication
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -28,12 +28,9 @@ services:
     container_name: elasticsearch
     ports:
       - '9200:9200'
-      - '9300:9300'
     environment:
       discovery.type: single-node
       ES_JAVA_OPTS: -Xmx512m -Xms512m
-      node.name: crud-node
-      cluster.name: weather-stations-monitoring
     volumes:
       - ./elastic/data:/usr/share/elasticsearch/data
     networks:
@@ -44,26 +41,37 @@ services:
     container_name: kibana
     ports:
       - '5601:5601'
-      - '9600:9600'
     environment:
-      SERVERNAME: kibana
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-      ES_JAVA_OPTS: -Xmx512m -Xms512m
-    networks:
-      - elasticnet
     depends_on:
       - elasticsearch
+    networks:
+      - elasticnet
 
-  central-station:
+
+  bitcask-server:
+    image: muhammedatef14/bitcask-server:latest
     build:
       context: .
-      dockerfile: ./central-station/Dockerfile
+      dockerfile: bitcask-core/Dockerfile
+    container_name: bitcask-server
+    ports:
+      - "50051:50051"
+    volumes:
+      - bitcask_data:/data/bitcask
+    restart: unless-stopped
+    networks:
+      - elasticnet
+
+
+  central-station:
+    image: muhammedatef14/central-station:latest
     container_name: central-station
     depends_on:
       - kafka
+      - bitcask-server
     environment:
       - KAFKA_BROKER=kafka:29092
-      - JAVA_TOOL_OPTIONS=-Djava.security.manager=allow
       - BITCASK_DIR=/data/bitcask
       - PARQUET_DIR=/data/parquet
     volumes:
@@ -73,9 +81,7 @@ services:
       - elasticnet
 
   weather-station-1:
-    build:
-      context: ./weather-station
-    container_name: weather-station-1
+    image: muhammedatef14/weather-station:latest
     depends_on:
       - kafka
     environment:
@@ -85,10 +91,9 @@ services:
     networks:
       - elasticnet
 
+
   weather-station-2:
-    build:
-      context: ./weather-station
-    container_name: weather-station-2
+    image: muhammedatef14/weather-station:latest
     depends_on:
       - kafka
     environment:
@@ -99,9 +104,7 @@ services:
       - elasticnet
 
   weather-station-3:
-    build:
-      context: ./weather-station
-    container_name: weather-station-3
+    image: muhammedatef14/weather-station:latest
     depends_on:
       - kafka
     environment:
@@ -111,35 +114,10 @@ services:
     networks:
       - elasticnet
 
-  weather-station-4:
-    build:
-      context: ./weather-station
-    container_name: weather-station-4
-    depends_on:
-      - kafka
-    environment:
-      - KAFKA_BROKER=kafka:29092
-      - STATION_ID=4
-      - MAIN_CLASS=com.data_aquisition.producer.WeatherStationProducer
-    networks:
-      - elasticnet
+
 
   weather-station-api:
-    build:
-      context: ./weather-station
-    container_name: weather-station-api
-    depends_on:
-      - kafka
-    environment:
-      - KAFKA_BROKER=kafka:29092
-      - MAIN_CLASS=com.data_aquisition.producer.OpenMeteoChannelAdaptor
-    networks:
-      - elasticnet
-
-  open-meteo-adapter:
-    build:
-      context: ./weather-station
-    container_name: open-meteo-adapter
+    image: muhammedatef14/meteo-api-station:latest
     depends_on:
       - kafka
     environment:
@@ -149,8 +127,7 @@ services:
       - elasticnet
 
   es-worker:
-    build:
-      context: ./es-worker
+    image: muhammedatef14/es-worker:latest
     container_name: es-worker
     depends_on:
       - elasticsearch
@@ -158,14 +135,16 @@ services:
     environment:
       - ES_URL=http://elasticsearch:9200/_bulk
       - PARQUET_DIR=/data/parquet
-      - POLL_INTERVAL=360
     volumes:
       - ./parquet-data:/data/parquet
     networks:
       - elasticnet
 
-volumes:
-  logvolume01: {}
-
+# --- NETWORKS & VOLUMES ---
 networks:
-  elasticnet: {}
+  elasticnet:
+    driver: bridge
+
+volumes:
+  bitcask_data:
+  logvolume01:
