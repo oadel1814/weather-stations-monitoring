@@ -16,18 +16,20 @@ public class WeatherStationProducer {
 
     public static void main(String[] args) throws Exception {
 
-        String stationEnv = System.getenv("STATION_ID");
-        long stationId;
+        String envId = System.getenv("STATION_ID");
+        long stationId = 1;
 
-        if (stationEnv != null && stationEnv.contains("-")) {
-           String[] parts = stationEnv.split("-");
-           stationId = Long.parseLong(parts[parts.length - 1]) + 1;
-        } else if (stationEnv != null) {
-          // If it's already just a number, use it directly
-          stationId = Long.parseLong(stationEnv);
-        } else {
-         // Fallback if environment variable is missing
-         stationId = 1;
+        if (envId != null && !envId.trim().isEmpty()) {
+            try {
+                if (envId.contains("-")) {
+                    String[] parts = envId.split("-");
+                    stationId = Long.parseLong(parts[parts.length - 1]) + 1;
+                } else {
+                    stationId = Long.parseLong(envId);
+                }
+            } catch (NumberFormatException e) {
+                System.err.println("Could not parse STATION_ID: " + envId);
+            }
         }
 
         KafkaProducerConfig config = new KafkaProducerConfig();
