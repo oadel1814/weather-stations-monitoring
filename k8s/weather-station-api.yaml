@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-station-api
+  labels:
+    app: weather-station-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-station-api
+  template:
+    metadata:
+      labels:
+        app: weather-station-api
+    spec:
+      containers:
+        - name: weather-station-api
+          image: muhammedatef14/meteo-api-station:latest
+          imagePullPolicy: Always
+          env:
+            - name: KAFKA_BROKER
+              value: "kafka:29092"
+            - name: MAIN_CLASS
+              value: "com.data_aquisition.producer.OpenMeteoChannelAdaptor"

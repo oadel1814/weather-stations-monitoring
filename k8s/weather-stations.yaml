@@ -1,21 +1,10 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: weather-station
-spec:
-  clusterIP: None
-  selector:
-    app: weather-station
-  ports:
-    - port: 80
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: weather-station
 spec:
   serviceName: "weather-station"
-  replicas: 5
+  replicas: 4
   selector:
     matchLabels:
       app: weather-station
@@ -26,11 +15,13 @@ spec:
     spec:
       containers:
         - name: weather-station
-          image: muhammedatef14/weather-station:v2
+          image: muhammedatef14/weather-station:v3  # We will build v3 next!
           imagePullPolicy: Always
           env:
             - name: KAFKA_BROKER
               value: "kafka:29092"
+            - name: MAIN_CLASS
+              value: "com.data_aquisition.producer.WeatherStationProducer"
             - name: STATION_ID
               valueFrom:
                 fieldRef:

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bitcask-server
+  labels:
+    app: bitcask-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bitcask-server
+  template:
+    metadata:
+      labels:
+        app: bitcask-server
+    spec:
+      containers:
+        - name: bitcask-server
+          image: muhammedatef14/bitcask-server:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 50051
+          volumeMounts:
+            - name: bitcask-data
+              mountPath: /data/bitcask
+      volumes:
+        - name: bitcask-data
+          persistentVolumeClaim:
+            claimName: bitcask-data-pvc # Maps exactly to your existing PVC
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bitcask-server
+spec:
+  type: NodePort
+  selector:
+    app: bitcask-server
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: 50051
+      nodePort: 30051 # Opens this port on your host machine
