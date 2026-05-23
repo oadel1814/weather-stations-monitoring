@@ -17,11 +17,15 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -123,36 +127,81 @@ class BitcaskImpl implements Bitcask {
 
   @Override
   public void merge() throws IOException {
-
     List<Path> filesToMerge = BitcaskFileHelpers.getReadOnlyFiles(directory);
-    if (filesToMerge.size() == 0) return;
+    if (filesToMerge.isEmpty()) return;
+
+    int numThreads = Runtime.getRuntime().availableProcessors();
+    ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+    List<Future<Void>> futures = new ArrayList<>();
+
+    List<List<Path>> batches = new ArrayList<>();
+    for (int i = 0; i < numThreads; i++) {
+      batches.add(new ArrayList<>());
+    }
+    for (int i = 0; i < filesToMerge.size(); i++) {
+      batches.get(i % numThreads).add(filesToMerge.get(i));
+    }
+
+    for (List<Path> batch : batches) {
+      if (batch.isEmpty()) continue;
+      futures.add(
+          executor.submit(
+              () -> {
+                processBatchOfFiles(batch);
+                return null;
+              }));
+    }
+
+    try {
+      for (Future<Void> future : futures) {
+        future.get();
+      }
+    } catch (InterruptedException | ExecutionException e) {
+      throw new IOException("Merge was interrupted", e);
+    } finally {
+      executor.shutdown();
+    }
+
+    deleteObsoleteFiles(filesToMerge);
+  }
+
+  private void processBatchOfFiles(List<Path> batch) throws IOException {
     LogWriter compactedLogWriter = openFreshCompactedFile();
     HintWriter compactedHintWriter = openMatchingHintFile(compactedLogWriter);
 
-    for (Path path : filesToMerge) {
-      long fileId = BitcaskFileHelpers.getFileId(path);
-      LogReader oldLogFile = new LogReaderImpl(path);
-      oldLogFile.resetReadPosition();
-      while (true) {
-        LogFileEntry logFileEntry = oldLogFile.readNextLogEntry();
-        if (logFileEntry == null) break;
-        KeyDirEntry currentEntry = keyDir.get(logFileEntry.getKey());
-        if (currentEntry != null
-            && currentEntry.getFileId() == fileId
-            && currentEntry.getValuePosition() == logFileEntry.getValuePosition()) {
-          KeyDirEntry newKeyDirEntry =
-              writeToCompactedFiles(compactedLogWriter, compactedHintWriter, logFileEntry);
-          keyDir.replace(logFileEntry.getKey(), currentEntry, newKeyDirEntry);
-          if (compactedLogWriter.getSize() >= MAX_FILE_SIZE_BYTES) {
-            closeCompactedPair(compactedLogWriter, compactedHintWriter);
-            compactedLogWriter = openFreshCompactedFile();
-            compactedHintWriter = openMatchingHintFile(compactedLogWriter);
+    try {
+      for (Path path : batch) {
+        long fileId = BitcaskFileHelpers.getFileId(path);
+        LogReader oldLogFile = new LogReaderImpl(path);
+        oldLogFile.resetReadPosition();
+
+        while (true) {
+          LogFileEntry logFileEntry = oldLogFile.readNextLogEntry();
+          if (logFileEntry == null) break;
+
+          KeyDirEntry currentEntry = keyDir.get(logFileEntry.getKey());
+
+          if (currentEntry != null
+              && currentEntry.getFileId() == fileId
+              && currentEntry.getValuePosition() == logFileEntry.getValuePosition()) {
+
+            KeyDirEntry newKeyDirEntry =
+                writeToCompactedFiles(compactedLogWriter, compactedHintWriter, logFileEntry);
+            keyDir.replace(logFileEntry.getKey(), currentEntry, newKeyDirEntry);
+
+            // Only rotate if this thread's dense file hits the max size
+            if (compactedLogWriter.getSize() >= MAX_FILE_SIZE_BYTES) {
+              closeCompactedPair(compactedLogWriter, compactedHintWriter);
+              compactedLogWriter = openFreshCompactedFile();
+              compactedHintWriter = openMatchingHintFile(compactedLogWriter);
+            }
           }
         }
+        oldLogFile.close();
       }
+    } finally {
+      closeCompactedPair(compactedLogWriter, compactedHintWriter);
     }
-    closeCompactedPair(compactedLogWriter, compactedHintWriter);
-    deleteObsoleteFiles(filesToMerge);
   }
 
   // --------------------helper functions--------------------------------
@@ -247,9 +296,15 @@ class BitcaskImpl implements Bitcask {
   private void deleteObsoleteFiles(List<Path> paths) throws IOException {
     for (Path path : paths) {
       long fileId = BitcaskFileHelpers.getFileId(path);
+
       LogReader reader = readableFiles.remove(fileId);
       if (reader != null) reader.close();
+
       java.nio.file.Files.deleteIfExists(path);
+
+      String hintFileName = path.getFileName().toString().replace(".merge", ".hint");
+      Path hintPath = path.resolveSibling(hintFileName);
+      java.nio.file.Files.deleteIfExists(hintPath);
     }
   }
 

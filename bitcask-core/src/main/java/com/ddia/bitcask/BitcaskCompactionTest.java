@@ -61,7 +61,11 @@ public class BitcaskCompactionTest {
       // STEP 3: Trigger Merge
       // ---------------------------------------------------------
       System.out.println("\n[3/4] Triggering direct Merge operation...");
+      long start = System.currentTimeMillis();
       bitcask.merge();
+
+      long end = System.currentTimeMillis();
+      System.out.println("time spent:" + (end - start));
       System.out.println("      [SUCCESS] Compaction/Merge completed successfully.");
 
       // ---------------------------------------------------------
