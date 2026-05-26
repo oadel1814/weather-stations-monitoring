@@ -123,6 +123,7 @@ public class ParquetService implements IParquet {
         record.put("humidity",         msg.weather.humidity);
         record.put("temperature",      msg.weather.temperature);
         record.put("wind_speed",       msg.weather.wind_speed);
+        record.put("station_type",      msg.station_type);
         return record;
     }
 

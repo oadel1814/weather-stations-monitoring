@@ -14,13 +14,14 @@ spec:
     spec:
       containers:
         - name: central-station
-          image: muhammedatef14/central-station:latest 
+          image: muhammedatef14/central-station:latest
           imagePullPolicy: Always
           env:
             - name: KAFKA_BROKER
               value: "kafka:29092"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Djava.security.manager=allow"
+              # The JFR startup flags are appended right here:
+              value: "-Djava.security.manager=allow -XX:StartFlightRecording=duration=60s,filename=/tmp/central_profile.jfr,settings=profile"
             - name: BITCASK_DIR
               value: "/data/bitcask"
             - name: PARQUET_DIR

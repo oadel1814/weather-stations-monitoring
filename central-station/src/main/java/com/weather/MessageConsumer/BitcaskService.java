@@ -1,5 +1,6 @@
 package com.weather.MessageConsumer;
 import com.ddia.bitcask.Impl.BitcaskFactory;
+import com.ddia.bitcask.enums.SyncConfig;
 import com.ddia.bitcask.interfaces.Bitcask;
 import com.weather.MessageConsumer.interfaces.IBitcask;
 import com.weather.model.WeatherMessage;
@@ -13,9 +14,9 @@ public class BitcaskService implements IBitcask {
     private static final Logger log = LoggerFactory.getLogger(BitcaskService.class);
     String bitcaskDir = System.getenv().getOrDefault("BITCASK_DIR", "/data/bitcask");
     private final Bitcask bitcask;
-
+    SyncConfig syncConfig = SyncConfig.SYNC_EVERY_SEC;
     public BitcaskService() {
-        bitcask = BitcaskFactory.getInstance(bitcaskDir);
+        bitcask = BitcaskFactory.getInstance(bitcaskDir, syncConfig);
         log.info("BitcaskService initialized at {}", bitcaskDir);
     }
 
@@ -35,9 +36,9 @@ public class BitcaskService implements IBitcask {
 
     private String toJson(WeatherMessage msg) {
         return String.format(
-                "{\"station_id\":%d,\"s_no\":%d,\"battery_status\":\"%s\"," +
+                "{\"station_id\":%d,\"s_no\":%d,\"station_type\":%s,\"battery_status\":\"%s\"," +
                         "\"status_timestamp\":%d,\"humidity\":%d,\"temperature\":%d,\"wind_speed\":%d}",
-                msg.station_id, msg.s_no, msg.battery_status, msg.status_timestamp,
+                msg.station_id, msg.s_no, msg.station_type,msg.battery_status, msg.status_timestamp,
                 msg.weather.humidity, msg.weather.temperature, msg.weather.wind_speed
         );
     }

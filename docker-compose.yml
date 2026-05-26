@@ -51,9 +51,6 @@ services:
 
   bitcask-server:
     image: muhammedatef14/bitcask-server:latest
-    build:
-      context: .
-      dockerfile: bitcask-core/Dockerfile
     container_name: bitcask-server
     ports:
       - "50051:50051"

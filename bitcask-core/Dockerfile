@@ -24,7 +24,7 @@ FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
-COPY --from=builder /app/target/benchmarks.jar /app/bitcask.jar
+COPY --from=builder /app/target/bitcask-0.0.1-SNAPSHOT.jar /app/bitcask.jar
 
 # Configurable data directory — no hardcoded user paths
 ENV BITCASK_DB_DIR=/data/bitcask

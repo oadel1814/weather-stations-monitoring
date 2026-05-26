@@ -9,6 +9,7 @@
     {"name": "status_timestamp", "type": "long"},
     {"name": "humidity",         "type": "int"},
     {"name": "temperature",      "type": "int"},
-    {"name": "wind_speed",       "type": "int"}
+    {"name": "wind_speed",       "type": "int"},
+    {"name":  "station_type",    "type": "string"}
   ]
 }
